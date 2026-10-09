@@ -29,49 +29,63 @@ export function truncate(text: string, max: number): string {
 
 const quote = (text: string, max: number) => `<blockquote>${escapeHtml(truncate(text, max))}</blockquote>`;
 
+/** Разделитель между блоками карточки (в HTML-режиме Telegram нет <hr>). */
+const SEPARATOR = '━━━━━━━━━━━━━━━━';
+
 export function renderCard(c: CommentRow): string {
-  const lines: string[] = [];
+  const sections: string[][] = [];
 
+  // Шапка
   const flagged = c.category === 'spam' || c.category === 'abuse';
-  lines.push(flagged ? '⚠️ <b>Комментарий (похоже на спам/оскорбление)</b>' : '💬 <b>Новый комментарий</b>');
-  lines.push(`👤 <b>@${escapeHtml(c.username ?? 'unknown')}</b>`);
+  sections.push([flagged ? '⚠️ <b>КОММЕНТАРИЙ — похоже на спам/оскорбление</b>' : '💬 <b>НОВЫЙ КОММЕНТАРИЙ</b>']);
 
-  const caption = c.mediaCaption ? escapeHtml(truncate(c.mediaCaption, 150)) : '<i>без подписи</i>';
-  const link = c.mediaPermalink ? ` — <a href="${escapeHtml(c.mediaPermalink)}">открыть пост</a>` : '';
-  lines.push(`📝 ${caption}${link}`);
+  // Пост
+  const link = c.mediaPermalink ? ` · <a href="${escapeHtml(c.mediaPermalink)}">открыть</a>` : '';
+  sections.push([
+    `📌 <b>ПОСТ</b>${link}`,
+    c.mediaCaption ? quote(c.mediaCaption, 150) : '<i>без подписи</i>',
+  ]);
 
-  if (c.parentText) lines.push(`↪️ В ответ на:\n${quote(c.parentText, 300)}`);
-  lines.push(quote(c.text, 1200));
+  // Комментарий
+  const comment = [`👤 <b>КОММЕНТАРИЙ от @${escapeHtml(c.username ?? 'unknown')}</b>`];
+  if (c.parentText) comment.push(`↪️ <i>в ответ на:</i>`, quote(c.parentText, 300));
+  comment.push(quote(c.text, 1200));
+  sections.push(comment);
 
-  if (flagged) {
-    lines.push('🚫 <b>Рекомендую «Пропустить».</b>');
-  }
+  // Ответ бота
+  const draft = ['🤖 <b>ОТВЕТ БОТА</b> <i>(черновик)</i>'];
+  if (flagged) draft.push('🚫 <b>Рекомендую «Пропустить».</b>');
   if (c.draft) {
-    lines.push(`🤖 <b>Черновик:</b>\n${escapeHtml(truncate(c.draft, 1200))}`);
+    draft.push(quote(c.draft, 1200));
   } else if (c.status === 'pending') {
-    lines.push('🤖 <i>Черновика нет — нажми «Перегенерировать» или «Изменить».</i>');
+    draft.push('<i>Черновика нет — нажми «Перегенерировать» или «Изменить».</i>');
   }
-  if (c.draftNote) lines.push(`🗒 <i>${escapeHtml(truncate(c.draftNote, 300))}</i>`);
+  if (c.draftNote) draft.push(`🗒 <i>${escapeHtml(truncate(c.draftNote, 300))}</i>`);
   if (c.regenHint && c.status === 'pending') {
-    lines.push(`✍️ Уточнение: <i>${escapeHtml(truncate(c.regenHint, 300))}</i>`);
+    draft.push(`✍️ Уточнение: <i>${escapeHtml(truncate(c.regenHint, 300))}</i>`);
   }
+  if (draft.length > 1) sections.push(draft);
 
+  // Итог
   const by = c.handledBy ? ` (${escapeHtml(c.handledBy)})` : '';
   switch (c.status) {
     case 'sent':
-      lines.push(`✅ <b>Отправлено${by}:</b>\n${escapeHtml(truncate(c.finalReply ?? '', 1000))}`);
+      sections.push([`✅ <b>ОТПРАВЛЕНО${by}</b>`, quote(c.finalReply ?? '', 1000)]);
       break;
     case 'skipped':
-      lines.push(`⏭ <b>Пропущено${by}</b>`);
+      sections.push([`⏭ <b>ПРОПУЩЕНО${by}</b>`]);
       break;
     case 'error':
-      lines.push(`❗ <b>Ошибка:</b> <code>${escapeHtml(truncate(c.error ?? 'неизвестная ошибка', 500))}</code>`);
+      sections.push([
+        `❗ <b>ОШИБКА</b>`,
+        `<code>${escapeHtml(truncate(c.error ?? 'неизвестная ошибка', 500))}</code>`,
+      ]);
       break;
     case 'pending':
       break;
   }
 
-  return lines.join('\n\n');
+  return sections.map((s) => s.join('\n')).join(`\n${SEPARATOR}\n`);
 }
 
 export function cardKeyboard(c: CommentRow): InlineKeyboard | undefined {
