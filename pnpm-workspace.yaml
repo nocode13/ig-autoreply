@@ -1,0 +1,13 @@
+# Монорепы тут нет; файл нужен ради настроек ниже.
+packages:
+  - .
+
+# pnpm 10 по умолчанию не запускает install-скрипты зависимостей. esbuild нужен tsx и drizzle-kit.
+onlyBuiltDependencies:
+  - esbuild
+
+# better-sqlite3 13 поставляется с готовыми N-API бинарниками (prebuilds/ для darwin/linux/win32,
+# x64/arm64) и сборка ему не нужна. pnpm игнорирует его "gypfile": false и иначе запускает
+# node-gyp rebuild, который требует компилятор и скачивания заголовков Node.
+ignoredBuiltDependencies:
+  - better-sqlite3
